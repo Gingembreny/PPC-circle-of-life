@@ -1,0 +1,48 @@
+                         ┌─────────────────────┐
+                         │      Display         │
+                         │   (1 process)        │
+                         │--------------------- │
+                         │ - show populations   │
+                         │ - user commands      │
+                         └─────────▲───────────┘
+                                   │
+                     Message Queue │ (control / status)
+                                   │
+┌──────────────────────────────────┴──────────────────────────────────┐
+│                                ENV                                   │
+│                           (1 process)                                │
+│------------------------------------------------------------------------│
+│  Shared Memory (protected by Lock):                                    │
+│   - grass_quantity                                                      │
+│   - nb_predators                                                        │
+│   - nb_preys                                                            │
+│   - environment parameters (H, R, growth rate, drought flag)           │
+│                                                                        │
+│  IPC mechanisms:                                                       │
+│   - Socket server (predator / prey connect here)                       │
+│   - Message queue (with display)                                       │
+│   - Signal handler (drought events)                                    │
+│                                                                        │
+│  Responsibilities:                                                     │
+│   - validate actions (eat / reproduce / die)                           │
+│   - update shared memory                                               │
+│   - spawn / terminate agents                                           │
+└───────────────▲───────────────────────────────▲──────────────────────┘
+                │                               │
+      Socket    │                               │   Socket
+ (action request)                               │ (action request)
+                │                               │
+┌───────────────┴───────────────┐   ┌───────────┴───────────────┐
+│         Predator process       │   │          Prey process     │
+│      (1 process = 1 agent)     │   │      (1 process = 1 agent)│
+│--------------------------------│   │---------------------------│
+│ - energy                        │   │ - energy                  │
+│ - state: active / passive       │   │ - state: active / passive │
+│                                │   │                           │
+│ Loop:                           │   │ Loop:                     │
+│  - energy decay                 │   │  - energy decay           │
+│  - state update                 │   │  - state update           │
+│  - if active → request eat      │   │  - if active → eat grass  │
+│  - if energy > R → reproduce    │   │  - if energy > R → repr.  │
+│  - if energy < 0 → die          │   │  - if energy < 0 → die    │
+└─────────────────────────────────┘   └───────────────────────────┘
