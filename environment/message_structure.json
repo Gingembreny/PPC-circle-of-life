@@ -1,0 +1,6 @@
+{
+  "type": "request_eat/reproduce",
+  "agent_type": "predator/prey",
+  "agent_id": 12,
+  "energy": 26
+}
