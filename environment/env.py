@@ -3,6 +3,7 @@
 import socket
 import json
 import threading
+from multiprocessing import Manager
 
 HOST = "localhost"
 PORT = 6666
@@ -10,8 +11,13 @@ PORT = 6666
 nb_predators = 0
 nb_preys = 0
 grass_quantity = 0
+predator_eat_gain = 30
+prey_eat_gain = 10
 alive_agents = set()
+energy_ledger = {}
 world_lock = threading.Lock()
+manager = Manager()
+shared_energy = manager.dict()
 
 def print_world_state():
 	global nb_predators, nb_preys, grass_quantity
@@ -19,7 +25,7 @@ def print_world_state():
 				
 
 def handle_agent(conn, addr):
-	global nb_predators, nb_preys, grass_quantity, alive_agents
+	global nb_predators, nb_preys, grass_quantity, alive_agents, energy_ledger
 	
 	print(f"[ENV] New connection from {addr}")
 
@@ -50,6 +56,7 @@ def handle_agent(conn, addr):
 			
 			if msg_type == "request_eat":
 				with world_lock:
+					energy_ledger.setdefault(agent_id, 0)
 					if agent_type == "predator":
 						if nb_preys > 0:
 							nb_preys -= 1
@@ -57,14 +64,18 @@ def handle_agent(conn, addr):
 								prey_id = next(iter(alive_agents))
 								alive_agents.remove(prey_id)
 
-							print("[ENV] Predator eats a prey")
+							energy_ledger[agent_id] += predator_eat_gain
+							shared_energy[agent_id] = energy_ledger[agent_id]
+							print(f"[ENV] Predator {agent_id} eats a prey (+{predator_eat_gain})")
 						else:
 							print("[ENV] No prey alive")
 					
 					elif agent_type == "prey":
 						if grass_quantity > 0:
 							grass_quantity -= 1
-							print("[ENV] Prey eats grass")
+							energy_ledger[agent_id] += prey_eat_gain
+							shared_energy[agent_id] = energy_ledger[agent_id]
+							print(f"[ENV] Prey {agent_id} eats grass (+{prey_eat_gain})")
 						else:
 							print("[ENV] No grass available")
 					

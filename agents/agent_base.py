@@ -6,12 +6,13 @@ import time
 from multiprocessing import *
 
 class Agent(Process):
-    def __init__(self, agent_id, agent_type, energy, H, R,
+    def __init__(self, agent_id, agent_type, energy, shared_energy, H, R,
                  env_host="localhost", env_port=6666):
         super().__init__()
         self.agent_id = agent_id
         self.agent_type = agent_type  # "predator" or "prey"
         self.energy = energy
+        self.shared_energy = shared_energy
         self.H = H
         self.R = R
         self.state = "passive"
@@ -50,12 +51,20 @@ class Agent(Process):
     def notify_death(self):
         self.send_request("notify_death")
 
+	# ---------- pull gain from environment ----------
+    def consume_energy_from_env(self):
+        delta = self.shared_energy.get(self.agent_id, 0)
+        if delta != 0:
+            self.energy += delta
+            self.shared_energy[self.agent_id] = 0
+
     # ---------- main loop ----------
     def run(self, dt=1):
         while True:
             time.sleep(dt)
 
             # energy decay
+            self.consume_energy_from_env()
             self.energy -= 1
             self.update_state()
 
