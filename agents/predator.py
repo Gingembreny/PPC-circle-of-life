@@ -13,7 +13,11 @@ class Predator(Agent):
             R = R
         )
 
+    
+    
+
 
 if __name__ == "__main__":
     predator = Predator(agent_id = 1)
-    predator.run()
+    predator.start()
+    predator.join()

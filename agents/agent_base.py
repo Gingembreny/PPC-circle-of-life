@@ -3,11 +3,12 @@
 import socket
 import json
 import time
+from multiprocessing import *
 
-
-class Agent:
+class Agent(Process):
     def __init__(self, agent_id, agent_type, energy, H, R,
                  env_host="localhost", env_port=6666):
+        super().__init__()
         self.agent_id = agent_id
         self.agent_type = agent_type  # "predator" or "prey"
         self.energy = energy
