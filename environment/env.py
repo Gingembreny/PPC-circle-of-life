@@ -13,6 +13,9 @@ nb_preys = 0
 grass_quantity = 0
 predator_eat_gain = 30
 prey_eat_gain = 10
+predator_reproduce_threshold = 80
+prey_reproduce_threshold = 60
+reproduce_cost = 30
 alive_agents = set()
 energy_ledger = {}
 world_lock = threading.Lock()
@@ -107,6 +110,30 @@ def handle_agent(conn, addr):
 							print(f"[ENV] Prey {agent_id} died (natural)")
 					
 					print_world_state()
+
+			if msg_type == "request_reproduce":
+				with world_lock:
+					energy_ledger.setdefault(agent_id, 0)
+
+					if agent_type == "predator":
+						allowed = (energy_ledger.get(agent_id, 0) >= predator_reproduce_threshold)
+					elif agent_type == "prey":
+						allowed = (energy_ledger.get(agent_id, 0) >= prey_reproduce_threshold)
+					else:
+						allowed = False
+
+					if allowed:
+						energy_ledger[agent_id] -= reproduce_cost
+						shared_energy[agent_id] = energy_ledger[agent_id]
+
+						if agent_type == "predator":
+							nb_predators += 1
+						elif agent_type == "prey":
+							nb_preys += 1
+						
+						print_world_state()
+					else:
+						print(f"[ENV] {agent_type} {agent_id} reproduction denied (energy too low)")
 
 		except json.JSONDecodeError:
 			print("[ENV] Received invalid JSON")
