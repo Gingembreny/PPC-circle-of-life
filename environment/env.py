@@ -2,41 +2,119 @@
 
 import socket
 import json
-
+import threading
 
 HOST = "localhost"
 PORT = 6666
 
+nb_predators = 0
+nb_preys = 0
+grass_quantity = 0
+alive_agents = set()
+world_lock = threading.Lock()
+
+def print_world_state():
+	global nb_predators, nb_preys, grass_quantity
+	print(f"[ENV] World state: predators={nb_predators}, preys={nb_preys}, grass={grass_quantity}")
+				
 
 def handle_agent(conn, addr):
-    print(f"[ENV] New connection from {addr}")
+	global nb_predators, nb_preys, grass_quantity, alive_agents
+	
+	print(f"[ENV] New connection from {addr}")
 
-    while True:
-        data = conn.recv(1024)
-        if not data:
-            print(f"[ENV] Connection closed by {addr}")
-            break
+	while True:
+		data = conn.recv(1024)
+		if not data:
+			with world_lock:
+				if 'agent_id' in locals() and agent_id in alive_agents:
+					alive_agents.remove(agent_id)
 
-        try:
-            message = json.loads(data.decode())
-            print(f"[ENV] Received: {message}")
-        except json.JSONDecodeError:
-            print("[ENV] Received invalid JSON")
+					if agent_type == "predator":
+						nb_predators -= 1
+						print(f"[ENV] Predator {agent_id} disconnected")
+					elif agent_type == "prey":
+						nb_preys -= 1
+						print(f"[ENV] Prey {agent_id} disconnected")
 
-    conn.close()
+					print_world_state()
+			print(f"[ENV] Connection closed by {addr}")
+			break
+
+		try:
+			message = json.loads(data.decode())
+			print(f"[ENV] Received: {message}")
+			msg_type = message.get("type")
+			agent_type = message.get("agent_type")
+			agent_id = message.get("agent_id")
+			
+			if msg_type == "request_eat":
+				with world_lock:
+					if agent_type == "predator":
+						if nb_preys > 0:
+							nb_preys -= 1
+							if alive_agents:
+								prey_id = next(iter(alive_agents))
+								alive_agents.remove(prey_id)
+
+							print("[ENV] Predator eats a prey")
+						else:
+							print("[ENV] No prey alive")
+					
+					elif agent_type == "prey":
+						if grass_quantity > 0:
+							grass_quantity -= 1
+							print("[ENV] Prey eats grass")
+						else:
+							print("[ENV] No grass available")
+					
+					print_world_state()
+
+			if msg_type == "notify_birth":
+				with world_lock:
+					if agent_id not in alive_agents:
+						alive_agents.add(agent_id)
+
+						if agent_type == "predator":
+							nb_predators += 1
+							print(f"[ENV] New born predator {agent_id}")
+						elif agent_type == "prey":
+							nb_preys += 1
+							print(f"[ENV] New born prey {agent_id}")
+					print_world_state()
+				
+			if msg_type == "notify_death":
+				with world_lock:
+					if agent_id in alive_agents:
+						alive_agents.remove(agent_id)
+
+						if agent_type == "predator":
+							nb_predators -= 1
+							print(f"[ENV] Predator {agent_id} died (natural)")
+						elif agent_type == "prey":
+							nb_preys -= 1
+							print(f"[ENV] Prey {agent_id} died (natural)")
+					
+					print_world_state()
+
+		except json.JSONDecodeError:
+			print("[ENV] Received invalid JSON")
+
+	conn.close()
 
 
 def main():
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind((HOST, PORT))
-    server_socket.listen()
+	server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	server_socket.bind((HOST, PORT))
+	server_socket.listen()
 
-    print(f"[ENV] Server listening on {HOST}:{PORT}")
+	print(f"[ENV] Server listening on {HOST}:{PORT}")
 
-    while True:
-        conn, addr = server_socket.accept()
-        handle_agent(conn, addr)
+	while True:
+		conn, addr = server_socket.accept()
+		thread = threading.Thread(target = handle_agent, args = (conn, addr), daemon = True)
+		thread.start()
 
 
 if __name__ == "__main__":
-    main()
+	main()

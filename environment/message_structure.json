@@ -1,5 +1,5 @@
 {
-  "type": "request_eat/reproduce",
+  "type": "request_eat/reproduce/death_notify/register",
   "agent_type": "predator/prey",
   "agent_id": 12,
   "energy": 26

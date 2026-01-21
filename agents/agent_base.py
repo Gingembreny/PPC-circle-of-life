@@ -20,6 +20,7 @@ class Agent:
         self.env_port = env_port
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.connect((env_host, env_port))
+        self.send_request("notify_birth")
 
     # ---------- state logic ----------
     def update_state(self):
@@ -66,7 +67,7 @@ class Agent:
             if self.energy > self.R:
                 self.request_reproduce()
 
-            if self.energy < 0:
+            if self.energy <= 0:
                 self.notify_death()
                 print(f"[{self.agent_type} {self.agent_id}] died")
                 break
