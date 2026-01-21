@@ -16,4 +16,5 @@ class Prey(Agent):
 
 if __name__ == "__main__":
     prey = Prey(agent_id =1 )
-    prey.run()
+    prey.start()
+    prey.join()
