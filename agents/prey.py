@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from agent_base import Agent
+from .agent_base import Agent
 
 
 class Prey(Agent):
