@@ -4,6 +4,8 @@ import socket
 import json
 import threading
 from multiprocessing import Manager
+from agents.predator import Predator
+from agents.prey import Prey
 
 HOST = "localhost"
 PORT = 6666
@@ -16,6 +18,7 @@ prey_eat_gain = 10
 predator_reproduce_threshold = 80
 prey_reproduce_threshold = 60
 reproduce_cost = 30
+next_agent_id = 0
 alive_agents = set()
 energy_ledger = {}
 world_lock = threading.Lock()
@@ -29,7 +32,21 @@ shared_world_state["grass"] = grass_quantity
 def print_world_state():
 	global nb_predators, nb_preys, grass_quantity
 	print(f"[ENV] World state: predators={nb_predators}, preys={nb_preys}, grass={grass_quantity}")
-				
+
+def allocate_agent_id():
+	global next_agent_id
+	agent_id = next_agent_id
+	next_agent_id += 1
+	return agent_id
+
+def spawn_agent(agent_type, agent_id):
+	if agent_type == "predator":
+		agent = Predator(agent_id = agent_id, shared_energy = shared_energy, shared_world_state = shared_world_state)
+	elif agent_type == "prey":
+		agent = Prey(agent_id = agent_id, shared_energy = shared_energy, shared_world_state = shared_world_state)
+
+	agent.start()
+	print(f"[ENV] Spawned {agent_type} {agent_id}")
 
 def handle_agent(conn, addr):
 	global nb_predators, nb_preys, grass_quantity, alive_agents, energy_ledger
@@ -138,14 +155,10 @@ def handle_agent(conn, addr):
 						energy_ledger[agent_id] -= reproduce_cost
 						shared_energy[agent_id] = energy_ledger[agent_id]
 
-						if agent_type == "predator":
-							nb_predators += 1
-							shared_world_state["predators"] = nb_predators
-						elif agent_type == "prey":
-							nb_preys += 1
-							shared_world_state["preys"] = nb_preys
+						new_id = allocate_agent_id()
+						spawn_agent(agent_type, new_id)
+						print(f"[ENV] Reproduction approved, spawning {agent_type} {new_id}")
 						
-						print_world_state()
 					else:
 						print(f"[ENV] {agent_type} {agent_id} reproduction denied (energy too low)")
 

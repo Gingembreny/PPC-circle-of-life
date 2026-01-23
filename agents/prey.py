@@ -4,13 +4,15 @@ from agent_base import Agent
 
 
 class Prey(Agent):
-    def __init__(self, agent_id, energy=30, H=15, R=60):
+    def __init__(self, agent_id, shared_energy, shared_world_state, energy=30, H=15, R=60):
         super().__init__(
             agent_id = agent_id,
             agent_type = "prey",
             energy = energy,
             H = H,
-            R = R
+            R = R,
+            shared_energy = shared_energy,
+            shared_world_state = shared_world_state
         )
 
 

@@ -6,17 +6,17 @@ import time
 from multiprocessing import *
 
 class Agent(Process):
-    def __init__(self, agent_id, agent_type, energy, shared_energy, H, R, shared_world_state,
+    def __init__(self, agent_id, agent_type, energy, shared_energy, shared_world_state, H, R,
                  env_host="localhost", env_port=6666):
         super().__init__()
         self.agent_id = agent_id
         self.agent_type = agent_type  # "predator" or "prey"
         self.energy = energy
         self.shared_energy = shared_energy
+        self.shared_world_state = shared_world_state
         self.H = H
         self.R = R
         self.state = "passive"
-        self.shared_world_state = shared_world_state
 
         # socket setup
         self.env_host = env_host
