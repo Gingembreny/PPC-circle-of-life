@@ -21,6 +21,10 @@ energy_ledger = {}
 world_lock = threading.Lock()
 manager = Manager()
 shared_energy = manager.dict()
+shared_world_state = Manager().dict()
+shared_world_state["predators"] = nb_predators
+shared_world_state["preys"] = nb_preys
+shared_world_state["grass"] = grass_quantity
 
 def print_world_state():
 	global nb_predators, nb_preys, grass_quantity
@@ -41,9 +45,11 @@ def handle_agent(conn, addr):
 
 					if agent_type == "predator":
 						nb_predators -= 1
+						shared_world_state["predators"] = nb_predators
 						print(f"[ENV] Predator {agent_id} disconnected")
 					elif agent_type == "prey":
 						nb_preys -= 1
+						shared_world_state["preys"] = nb_preys
 						print(f"[ENV] Prey {agent_id} disconnected")
 
 					print_world_state()
@@ -63,6 +69,7 @@ def handle_agent(conn, addr):
 					if agent_type == "predator":
 						if nb_preys > 0:
 							nb_preys -= 1
+							shared_world_state["preys"] = nb_preys
 							if alive_agents:
 								prey_id = next(iter(alive_agents))
 								alive_agents.remove(prey_id)
@@ -76,6 +83,7 @@ def handle_agent(conn, addr):
 					elif agent_type == "prey":
 						if grass_quantity > 0:
 							grass_quantity -= 1
+							shared_world_state["grass"] = grass_quantity
 							energy_ledger[agent_id] += prey_eat_gain
 							shared_energy[agent_id] = energy_ledger[agent_id]
 							print(f"[ENV] Prey {agent_id} eats grass (+{prey_eat_gain})")
@@ -91,9 +99,11 @@ def handle_agent(conn, addr):
 
 						if agent_type == "predator":
 							nb_predators += 1
+							shared_world_state["predators"] = nb_predators
 							print(f"[ENV] New born predator {agent_id}")
 						elif agent_type == "prey":
 							nb_preys += 1
+							shared_world_state["preys"] = nb_preys
 							print(f"[ENV] New born prey {agent_id}")
 					print_world_state()
 				
@@ -104,9 +114,11 @@ def handle_agent(conn, addr):
 
 						if agent_type == "predator":
 							nb_predators -= 1
+							shared_world_state["predators"] = nb_predators
 							print(f"[ENV] Predator {agent_id} died (natural)")
 						elif agent_type == "prey":
 							nb_preys -= 1
+							shared_world_state["preys"] = nb_preys
 							print(f"[ENV] Prey {agent_id} died (natural)")
 					
 					print_world_state()
@@ -128,8 +140,10 @@ def handle_agent(conn, addr):
 
 						if agent_type == "predator":
 							nb_predators += 1
+							shared_world_state["predators"] = nb_predators
 						elif agent_type == "prey":
 							nb_preys += 1
+							shared_world_state["preys"] = nb_preys
 						
 						print_world_state()
 					else:

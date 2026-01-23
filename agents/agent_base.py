@@ -6,7 +6,7 @@ import time
 from multiprocessing import *
 
 class Agent(Process):
-    def __init__(self, agent_id, agent_type, energy, shared_energy, H, R,
+    def __init__(self, agent_id, agent_type, energy, shared_energy, H, R, shared_world_state,
                  env_host="localhost", env_port=6666):
         super().__init__()
         self.agent_id = agent_id
@@ -16,6 +16,7 @@ class Agent(Process):
         self.H = H
         self.R = R
         self.state = "passive"
+        self.shared_world_state = shared_world_state
 
         # socket setup
         self.env_host = env_host
@@ -51,12 +52,19 @@ class Agent(Process):
     def notify_death(self):
         self.send_request("notify_death")
 
-	# ---------- pull gain from environment ----------
+    # ---------- pull gain from environment ----------
     def consume_energy_from_env(self):
         delta = self.shared_energy.get(self.agent_id, 0)
         if delta != 0:
             self.energy += delta
             self.shared_energy[self.agent_id] = 0
+
+    # ---------- pull world state form environment ----------
+    def perceive_world(self):
+        predators = self.shared_world.get("predators", 0)
+        preys = self.shared_world.get("preys", 0)
+        grass = self.shared_world.get("grass", 0)
+        return predators, preys, grass
 
     # ---------- main loop ----------
     def run(self, dt=1):
@@ -81,5 +89,8 @@ class Agent(Process):
                 self.notify_death()
                 print(f"[{self.agent_type} {self.agent_id}] died")
                 break
+
+            predators, preys, grass = self.perceive_world()
+            print(f"[AGENT {self.agent_id}] sees world: Predators={predators}, Preys={preys}, Grass:{grass}")
 
         self.sock.close()
