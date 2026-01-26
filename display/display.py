@@ -68,20 +68,8 @@ class App:
         self.canvas.pack()
 
         self.displayAgent = DisplayAgent(self.canvas, 400, 300, SPRITE_PATH)
-
-        # touches actuellement pressées
-        self.keys = set()
-
-        root.bind("<KeyPress>", self.key_down)
-        root.bind("<KeyRelease>", self.key_up)
-
+        
         self.update()
-
-    def key_down(self, event):
-        self.keys.add(event.keysym)
-
-    def key_up(self, event):
-        self.keys.discard(event.keysym)
 
     def update(self):
         self.displayAgent.move()
@@ -106,9 +94,11 @@ def receive_world_state():
         if received:
             command = received.split(" ")
 
-            if command[0] == "[ENV]":
-                print("World state received:")
-                print(received)
+            if command[0] != "[ENV]":
+                continue
+
+            print("World state received:")
+            print(received)
 
 
 mq_send_key = 128
@@ -136,5 +126,4 @@ if __name__ == "__main__":
     p_receive_world_state.start()
 
     root.mainloop()
-    p_receive_world_state.join()
     
