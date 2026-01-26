@@ -64,6 +64,16 @@ def grass_growth_loop(max_grass, shared_world_state):
 			grass_quantity = min(max_grass, grass_quantity + grass_growth_rate)
 			shared_world_state["grass"] = grass_quantity
 
+def set_drought(is_drought):
+	global grass_growth_rate
+	with world_lock:
+		if is_drought:
+			grass_growth_rate = 1
+			print("[ENV] Drought ON...")
+		else:
+			grass_growth_rate = 5
+			print("[ENV] Drought OFF...")
+
 def handle_agent(conn, addr, shared_energy, shared_world_state):
 	global nb_predators, nb_preys, grass_quantity, alive_agents, energy_ledger, process_table, agent_types
 	
@@ -104,7 +114,7 @@ def handle_agent(conn, addr, shared_energy, shared_world_state):
 						prey_id = select_prey_id()
 						if prey_id is not None:
 							alive_agents.remove(prey_id)
-							agent_types.pop(victim_id, None)
+							agent_types.pop(prey_id, None)
 							nb_preys -= 1
 							shared_world_state["preys"] = nb_preys
 								
