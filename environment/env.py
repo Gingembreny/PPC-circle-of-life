@@ -27,6 +27,14 @@ agent_types = {}
 process_table ={}
 energy_ledger = {}
 world_lock = threading.Lock()
+mq_send_key = 129
+mq_send = sysv_ipc.MessageQueue(mq_send_key, sysv_ipc.IPC_CREAT)
+
+def send_world_updates(message):
+	#sends to queue 129
+    to_send = str(message).encode()
+    mq_send.send(to_send)
+    print("send_world_updates: " + message)
 
 def listen_message_queue(shared_energy, shared_world_state):
 	# Receives the world state from the message queue 128
@@ -67,7 +75,12 @@ def spawn_agent(agent_type, agent_id, shared_energy, shared_world_state):
 	agent.start()
 	agent_types[agent_id] = agent_type
 	process_table[agent_id] = agent
-	print(f"[ENV] Spawned {agent_type} {agent_id}")
+	
+	# Sends update to the display
+	update_message = f"[ENV] SPAWN {agent_type} {agent_id}"
+	send_world_updates(update_message)
+
+	print(update_message)
 
 def select_prey_id():
 	global alive_agents
@@ -233,6 +246,7 @@ def main():
 	listening_mq = threading.Thread(target=listen_message_queue, args=(shared_energy, shared_world_state), daemon=True)
 	listening_mq.start()
 
+	print("-- env sending on queue " + str(mq_send_key))
 	while True:
 		conn, addr = server_socket.accept()
 		thread = threading.Thread(target = handle_agent, args = (conn, addr, shared_energy, shared_world_state), daemon = True)

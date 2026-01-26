@@ -43,7 +43,6 @@ class DisplayAgent:
             dy_ = 0
             self.y = CANVA_HEIGHT
 
-        print(f"{self.x} {self.y}")
         self.canvas.move(self.id, dx_, dy_)
 
         self.time_before_dir_change -= 1
@@ -68,7 +67,7 @@ class App:
         self.canvas.pack()
 
         self.displayAgent = DisplayAgent(self.canvas, 400, 300, SPRITE_PATH)
-        
+
         self.update()
 
     def update(self):
@@ -97,8 +96,8 @@ def receive_world_state():
             if command[0] != "[ENV]":
                 continue
 
-            print("World state received:")
-            print(received)
+            if command[1] == "SPAWN":
+                print(f"Spawned: {command[2]} {command[3]}")
 
 
 mq_send_key = 128
@@ -124,6 +123,8 @@ if __name__ == "__main__":
 
     p_receive_world_state = Process(target=receive_world_state)
     p_receive_world_state.start()
+
+    print("-- display sending on queue " + str(mq_send_key))
 
     root.mainloop()
     
