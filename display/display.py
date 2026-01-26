@@ -9,7 +9,8 @@ CANVA_WIDTH = 800
 CANVA_HEIGHT = 600
 MOVE_SPEED = 1
 BASE_DIR = Path(__file__).resolve().parent.parent
-SPRITE_PATH = BASE_DIR / "assets" / "predator_sprite.png"
+PREDA_SPRITE_PATH = BASE_DIR / "assets" / "predator_sprite.png"
+PREY_SPRITE_PATH = BASE_DIR / "assets" / "prey_sprite.png"
 
 class DisplayAgent:
     def __init__(self, canvas, x, y, sprite_path):
@@ -64,17 +65,28 @@ class App:
             height=CANVA_HEIGHT,
             bg="black"
         )
-        self.canvas.pack()
 
-        self.displayAgent = DisplayAgent(self.canvas, 400, 300, SPRITE_PATH)
+        self.canvas.pack()
+        self.displayAgents = []
+        self.add_agent("predator")
+        self.add_agent("predator")
+        self.add_agent("prey")
 
         self.update()
 
     def update(self):
-        self.displayAgent.move()
+        for agent in self.displayAgents:
+            agent.move()
 
         # boucle de jeu ~60 FPS
         self.root.after(16, self.update)
+
+    def add_agent(self, type):
+        if type == "predator":
+            agent = DisplayAgent(self.canvas, 400, 300, PREDA_SPRITE_PATH)
+        else:
+            agent = DisplayAgent(self.canvas, 100, 300, PREY_SPRITE_PATH)
+        self.displayAgents.append(agent)
 
 def send_command(message):
     # Sends commands to queue 128
