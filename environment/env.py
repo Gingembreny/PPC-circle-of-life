@@ -4,6 +4,7 @@ import socket
 import json
 import threading
 import time
+import sysv_ipc
 from multiprocessing import Manager
 from agents.predator import Predator
 from agents.prey import Prey
@@ -26,6 +27,25 @@ agent_types = {}
 process_table ={}
 energy_ledger = {}
 world_lock = threading.Lock()
+
+def listen_message_queue(shared_energy, shared_world_state):
+	# Receives the world state from the message queue 128
+	# key = 128
+	mq_key = 128
+	mq_receive = sysv_ipc.MessageQueue(mq_key)
+
+	print("-- env.py: Listening MQ on " + str(mq_key))
+	while True:
+		message, t = mq_receive.receive()
+		received = message.decode()
+		if received:
+			command = received.split(" ")
+			if command[0] == "SPAWN":
+				# example: SPAWN predator 1
+				spawn_agent(agent_type=command[1], agent_id=int(command[2]),shared_energy=shared_energy, shared_world_state=shared_world_state)
+			elif command[0] == "PRINT":
+				print_world_state()
+
 
 def print_world_state():
 	global nb_predators, nb_preys, grass_quantity
@@ -206,10 +226,12 @@ def main():
 	server_socket.listen()
 
 	print(f"[ENV] Server listening on {HOST}:{PORT}")
-
 	max_grass_quantity = 100
 	grass = threading.Thread(target=grass_growth_loop, args=(max_grass_quantity, shared_world_state), daemon = True)
 	grass.start()
+
+	listening_mq = threading.Thread(target=listen_message_queue, args=(shared_energy, shared_world_state), daemon=True)
+	listening_mq.start()
 
 	while True:
 		conn, addr = server_socket.accept()
