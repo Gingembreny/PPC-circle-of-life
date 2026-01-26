@@ -3,6 +3,7 @@
 import socket
 import json
 import threading
+import time
 from multiprocessing import Manager
 from agents.predator import Predator
 from agents.prey import Prey
@@ -13,6 +14,7 @@ PORT = 6666
 nb_predators = 0
 nb_preys = 0
 grass_quantity = 0
+grass_growth_rate = 5
 predator_eat_gain = 30
 prey_eat_gain = 10
 predator_reproduce_threshold = 80
@@ -54,6 +56,13 @@ def select_prey_id():
 			return aid
 	return None
 
+def grass_growth_loop(max_grass, shared_world_state):
+	global grass_quantity, grass_growth_rate
+	while True:
+		time.sleep(5)
+		with world_lock:
+			grass_quantity = min(max_grass, grass_quantity + grass_growth_rate)
+			shared_world_state["grass"] = grass_quantity
 
 def handle_agent(conn, addr, shared_energy, shared_world_state):
 	global nb_predators, nb_preys, grass_quantity, alive_agents, energy_ledger, process_table, agent_types
@@ -197,6 +206,10 @@ def main():
 	server_socket.listen()
 
 	print(f"[ENV] Server listening on {HOST}:{PORT}")
+
+	max_grass_quantity = 100
+	grass = threading.Thread(target=grass_growth_loop, args=(max_grass_quantity, shared_world_state), daemon = True)
+	grass.start()
 
 	while True:
 		conn, addr = server_socket.accept()
