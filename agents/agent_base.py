@@ -61,9 +61,9 @@ class Agent(Process):
 
     # ---------- pull world state form environment ----------
     def perceive_world(self):
-        predators = self.shared_world.get("predators", 0)
-        preys = self.shared_world.get("preys", 0)
-        grass = self.shared_world.get("grass", 0)
+        predators = self.shared_world_state.get("predators", 0)
+        preys = self.shared_world_state.get("preys", 0)
+        grass = self.shared_world_state.get("grass", 0)
         return predators, preys, grass
 
     # ---------- main loop ----------
