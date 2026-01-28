@@ -30,6 +30,7 @@ world_lock = threading.Lock()
 mq_send_key = 129
 mq_send = sysv_ipc.MessageQueue(mq_send_key, sysv_ipc.IPC_CREAT)
 
+
 def send_world_updates(message):
 	#sends to queue 129
     to_send = str(message).encode()
@@ -191,11 +192,11 @@ def handle_agent(conn, addr, shared_energy, shared_world_state):
 						if agent_type == "predator":
 							nb_predators -= 1
 							shared_world_state["predators"] = nb_predators
-							print(f"[ENV] Predator {agent_id} died (natural)")
+							print(f"[ENV] Predator {agent_id} died")
 						elif agent_type == "prey":
 							nb_preys -= 1
 							shared_world_state["preys"] = nb_preys
-							print(f"[ENV] Prey {agent_id} died (natural)")
+							print(f"[ENV] Prey {agent_id} died")
 
 					print_world_state()
 
