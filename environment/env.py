@@ -17,7 +17,7 @@ nb_preys = 0
 grass_quantity = 0
 grass_growth_rate = 5
 predator_eat_gain = 30
-prey_eat_gain = 10
+prey_eat_gain = 1
 predator_reproduce_threshold = 80
 prey_reproduce_threshold = 60
 reproduce_cost = 30
@@ -49,9 +49,18 @@ def listen_message_queue(shared_energy, shared_world_state):
 		received = message.decode()
 		if received:
 			command = received.split(" ")
-			if command[0] == "SPAWN":
-				# example: SPAWN predator 1
+			if command[0] == "SPAWN": # example: SPAWN predator 1
 				spawn_agent(agent_type=command[1], agent_id=int(command[2]),shared_energy=shared_energy, shared_world_state=shared_world_state)
+
+			# Stops the spawning of grass for an undetermined time
+			elif command[0] == "DROUGHT": # example: DROUGHT true
+				with world_lock:
+					if command[1] == "true":
+						shared_world_state["is_drought"] = True
+					elif command[1] == "false":
+						shared_world_state["is_drought"] = False
+					print(f"[ENV] Drought set to {command[1]}")
+
 			elif command[0] == "PRINT":
 				print_world_state()
 
@@ -95,8 +104,11 @@ def grass_growth_loop(max_grass, shared_world_state):
 	while True:
 		time.sleep(5)
 		with world_lock:
-			grass_quantity = min(max_grass, grass_quantity + grass_growth_rate)
-			shared_world_state["grass"] = grass_quantity
+			is_drought = shared_world_state["is_drought"]
+
+			if not is_drought:
+				grass_quantity = min(max_grass, grass_quantity + grass_growth_rate)
+				shared_world_state["grass"] = grass_quantity
 
 def handle_agent(conn, addr, shared_energy, shared_world_state):
 	global nb_predators, nb_preys, grass_quantity, alive_agents, energy_ledger, process_table, agent_types
@@ -238,6 +250,7 @@ def main():
 	shared_world_state["predators"] = nb_predators
 	shared_world_state["preys"] = nb_preys
 	shared_world_state["grass"] = grass_quantity
+	shared_world_state["is_drought"] = False
 	server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	server_socket.bind((HOST, PORT))
 	server_socket.listen()
