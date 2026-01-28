@@ -13,7 +13,8 @@ PREDA_SPRITE_PATH = BASE_DIR / "assets" / "predator_sprite.png"
 PREY_SPRITE_PATH = BASE_DIR / "assets" / "prey_sprite.png"
 
 class DisplayAgent:
-    def __init__(self, canvas, x, y, sprite_path):
+    def __init__(self, agent_id, canvas, x, y, sprite_path):
+        self.agent_id = agent_id
         self.canvas = canvas
         self.x = x
         self.y = y
@@ -67,35 +68,33 @@ class App:
         )
 
         self.canvas.pack()
-        self.displayAgents = []
-        self.add_agent("predator")
-        self.add_agent("predator")
-        self.add_agent("prey")
+        self.displayAgents = {} # agent = displayAgents[agent_id]
 
         self.update()
 
+    # Moves every agent and updates the canva
     def update(self):
-        for agent in self.displayAgents:
+        for _, agent in self.displayAgents.items():
             agent.move()
 
         # boucle de jeu ~60 FPS
         self.root.after(16, self.update)
 
-    def add_agent(self, type):
+    def add_agent(self, type, agent_id):
         if type == "predator":
-            agent = DisplayAgent(self.canvas, 400, 300, PREDA_SPRITE_PATH)
-        else:
-            agent = DisplayAgent(self.canvas, 100, 300, PREY_SPRITE_PATH)
-        self.displayAgents.append(agent)
+            agent = DisplayAgent(agent_id, self.canvas, 400, 300, PREDA_SPRITE_PATH)
+        elif type == "prey":
+            agent = DisplayAgent(agent_id, self.canvas, 100, 300, PREY_SPRITE_PATH)
+        self.displayAgents[agent_id] = agent
 
 def send_command(message):
     # Sends commands to queue 128
     to_send = str(message).encode()
     mq_send.send(to_send)
-    print("send_command: " + message)
+    print("display.py: send_command: " + message)
 
 
-def receive_world_state():
+def receive_world_state(command_queue):
     # Receives the world state from the message queue 129
 
     print("-- display.py: Listening on " + str(mq_receive_key))
@@ -103,14 +102,37 @@ def receive_world_state():
         message, t = mq_receive.receive()
         received = message.decode()
         if received:
+            # ex: [ENV] command_type
             command = received.split(" ")
+            header = command[0]
+            command_type = command[1]
 
-            if command[0] != "[ENV]":
+            if header != "[ENV]":
                 continue
 
-            if command[1] == "SPAWN":
-                print(f"Spawned: {command[2]} {command[3]}")
+            if command_type == "SPAWN": # ex: [ENV] SPAWN predator 1
+                agent_type = command[2]
+                agent_id = command[3]
 
+                # Puts the command in the command queue waiting to be executed by the App
+                command_queue.put((
+                "SPAWN",
+                agent_type,
+                agent_id
+                ))
+                print(f"display.py: Command {agent_type} {agent_id}")
+
+# Execute each command sent by child processes that are in the command queue
+def handle_commands(app: App):
+    while not command_queue.empty():
+        cmd = command_queue.get()
+
+        if cmd[0] == "SPAWN":
+            _, agent_type, agent_id = cmd
+            app.add_agent(type=agent_type, agent_id=agent_id)
+            print(f"display.py: Spawned {agent_type} {agent_id}")
+
+    app.root.after(50, lambda: handle_commands(app))
 
 mq_send_key = 128
 mq_send = sysv_ipc.MessageQueue(mq_send_key, sysv_ipc.IPC_CREAT)
@@ -118,12 +140,15 @@ mq_send = sysv_ipc.MessageQueue(mq_send_key, sysv_ipc.IPC_CREAT)
 mq_receive_key = 129
 mq_receive = sysv_ipc.MessageQueue(mq_receive_key)
 
+
 if __name__ == "__main__":
     root = tk.Tk()
     root.title("TextBox Input")
     root.geometry('1280x720')
 
     app = App(root)
+    command_queue = Queue()
+    handle_commands(app)
 
     # TextBox for input
     txt = tk.Text(root, height=5, width=40)
@@ -133,7 +158,7 @@ if __name__ == "__main__":
     btn = tk.Button(root, text="Print", command= lambda: send_command(txt.get('1.0', 'end-1c')))
     btn.pack()
 
-    p_receive_world_state = Process(target=receive_world_state)
+    p_receive_world_state = Process(target=receive_world_state, args=(command_queue,))
     p_receive_world_state.start()
 
     print("-- display sending on queue " + str(mq_send_key))
