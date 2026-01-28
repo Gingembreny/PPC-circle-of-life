@@ -24,7 +24,7 @@ class DisplayAgent:
         self.time_before_dir_change = self.default_time_before_dir_change
         self.dir = 0 # in degrees
 
-        self.id = canvas.create_image(self.x, self.y, image=self.sprite)
+        self.canva_id = canvas.create_image(self.x, self.y, image=self.sprite)
 
     def move(self):
         dx_ = MOVE_SPEED * math.cos(self.dir * math.pi/180)
@@ -45,7 +45,7 @@ class DisplayAgent:
             dy_ = 0
             self.y = CANVA_HEIGHT
 
-        self.canvas.move(self.id, dx_, dy_)
+        self.canvas.move(self.canva_id, dx_, dy_)
 
         self.time_before_dir_change -= 1
         if self.time_before_dir_change < 0:
@@ -53,6 +53,10 @@ class DisplayAgent:
 
             # Changes direction
             self.dir = random.randint(0, 359)
+
+    def remove_from_canva(self):
+        self.canvas.delete(self.canva_id)
+        self.sprite = None
 
 
 class App:
@@ -87,6 +91,10 @@ class App:
             agent = DisplayAgent(agent_id, self.canvas, 100, 300, PREY_SPRITE_PATH)
         self.displayAgents[agent_id] = agent
 
+    def remove_agent(self, agent_id):
+        agent = self.displayAgents.pop(agent_id)
+        agent.remove_from_canva()
+
 def send_command(message):
     # Sends commands to queue 128
     to_send = str(message).encode()
@@ -110,17 +118,17 @@ def receive_world_state(command_queue):
             if header != "[ENV]":
                 continue
 
-            if command_type == "SPAWN": # ex: [ENV] SPAWN predator 1
+            if command_type == "SPAWN" or command_type == "KILL": # ex: [ENV] SPAWN predator 1
                 agent_type = command[2]
                 agent_id = command[3]
 
-                # Puts the command in the command queue waiting to be executed by the App
+                # Puts the command in the command queue waiting to be executed by the App   
                 command_queue.put((
-                "SPAWN",
+                command_type,
                 agent_type,
                 agent_id
                 ))
-                print(f"display.py: Command {agent_type} {agent_id}")
+                print(f"display.py: Command {command_type} {agent_type} {agent_id}")
 
 # Execute each command sent by child processes that are in the command queue
 def handle_commands(app: App):
@@ -131,6 +139,10 @@ def handle_commands(app: App):
             _, agent_type, agent_id = cmd
             app.add_agent(type=agent_type, agent_id=agent_id)
             print(f"display.py: Spawned {agent_type} {agent_id}")
+        elif cmd[0] == "KILL":
+            _, agent_type, agent_id = cmd
+            app.remove_agent(agent_id=agent_id)
+            print(f"display.py: Killed {agent_type} {agent_id}")
 
     app.root.after(50, lambda: handle_commands(app))
 

@@ -192,13 +192,16 @@ def handle_agent(conn, addr, shared_energy, shared_world_state):
 						if agent_type == "predator":
 							nb_predators -= 1
 							shared_world_state["predators"] = nb_predators
-							print(f"[ENV] Predator {agent_id} died")
 						elif agent_type == "prey":
 							nb_preys -= 1
 							shared_world_state["preys"] = nb_preys
-							print(f"[ENV] Prey {agent_id} died")
 
-					print_world_state()
+						update_message = f"[ENV] KILL {agent_type} {agent_id}"
+						send_world_updates(update_message)
+
+						print(f"[ENV] {agent_type} {agent_id} died")
+
+						print_world_state()
 
 			if msg_type == "request_reproduce":
 				with world_lock:
