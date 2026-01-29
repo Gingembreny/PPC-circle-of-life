@@ -115,13 +115,13 @@ def send_message_to_mq(message):
     # Sends commands to queue 128
     to_send = str(message).encode()
     mq_send.send(to_send)
-    print("display.py: send_message_to_mq: " + message)
+    print("[DISPLAY] send_message_to_mq: " + message)
 
 
 def receive_world_state(command_queue):
     # Receives the world state from the message queue 129
 
-    print("-- display.py: Listening on " + str(mq_receive_key))
+    print("[DISPLAY] Listening on mq " + str(mq_receive_key))
     while True:
         message, t = mq_receive.receive()
         received = message.decode()
@@ -144,7 +144,7 @@ def receive_world_state(command_queue):
                 agent_type,
                 agent_id
                 ))
-                print(f"display.py: Command {command_type} {agent_type} {agent_id}")
+                print(f"[DISPLAY] Added to queue command {command_type} {agent_type} {agent_id}")
 
 # Execute each command sent by child processes that are in the command queue
 def handle_commands(app: App):
@@ -160,11 +160,11 @@ def handle_commands(app: App):
                 print(f"[DISPLAY] Warning: spawn for existing id {agent_id} (ignoring)")
             else:
                 app.add_agent(type=agent_type, agent_id=agent_id)
-                print(f"display.py: Spawned {agent_type} {agent_id}")
+                print(f"[DISPLAY] Spawned {agent_type} {agent_id}")
         elif cmd[0] == "KILL":
             _, agent_type, agent_id = cmd
             app.remove_agent(agent_id=agent_id)
-            print(f"display.py: Killed {agent_type} {agent_id}")
+            print(f"[DISPLAY] Killed {agent_type} {agent_id}")
 
     app.root.after(50, lambda: handle_commands(app))
 
@@ -190,13 +190,13 @@ if __name__ == "__main__":
     txt.pack()
 
     # Sends message on button click
-    btn = tk.Button(root, text="Send Command", command= lambda: on_click_send_button(txt))
+    btn = tk.Button(root, text="SEND COMMAND", command= lambda: on_click_send_button(txt))
     btn.pack()
 
     p_receive_world_state = Process(target=receive_world_state, args=(command_queue,))
     p_receive_world_state.start()
 
-    print("-- display sending on queue " + str(mq_send_key))
+    print("[DISPLAY] sending on mq " + str(mq_send_key))
 
     root.mainloop()
     
