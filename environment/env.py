@@ -4,6 +4,7 @@ import socket
 import json
 import threading
 import time
+import sysv_ipc
 from multiprocessing import Manager
 from agents.predator import Predator
 from agents.prey import Prey
@@ -16,7 +17,7 @@ nb_preys = 0
 grass_quantity = 0
 grass_growth_rate = 5
 predator_eat_gain = 30
-prey_eat_gain = 10
+prey_eat_gain = 1
 predator_reproduce_threshold = 80
 prey_reproduce_threshold = 60
 reproduce_cost = 30
@@ -26,6 +27,43 @@ agent_types = {}
 process_table ={}
 energy_ledger = {}
 world_lock = threading.Lock()
+mq_send_key = 129
+mq_send = sysv_ipc.MessageQueue(mq_send_key, sysv_ipc.IPC_CREAT)
+
+
+def send_world_updates(message):
+	#sends to queue 129
+    to_send = str(message).encode()
+    mq_send.send(to_send)
+    print("send_world_updates: " + message)
+
+def listen_message_queue(shared_energy, shared_world_state):
+	# Receives the world state from the message queue 128
+	# key = 128
+	mq_key = 128
+	mq_receive = sysv_ipc.MessageQueue(mq_key)
+
+	print("-- env.py: Listening MQ on " + str(mq_key))
+	while True:
+		message, t = mq_receive.receive()
+		received = message.decode()
+		if received:
+			command = received.split(" ")
+			if command[0] == "SPAWN": # example: SPAWN predator 1
+				spawn_agent(agent_type=command[1], agent_id=int(command[2]),shared_energy=shared_energy, shared_world_state=shared_world_state)
+
+			# Stops the spawning of grass for an undetermined time
+			elif command[0] == "DROUGHT": # example: DROUGHT true
+				with world_lock:
+					if command[1] == "true":
+						shared_world_state["is_drought"] = True
+					elif command[1] == "false":
+						shared_world_state["is_drought"] = False
+					print(f"[ENV] Drought set to {command[1]}")
+
+			elif command[0] == "PRINT":
+				print_world_state()
+
 
 def print_world_state():
 	global nb_predators, nb_preys, grass_quantity
@@ -47,7 +85,12 @@ def spawn_agent(agent_type, agent_id, shared_energy, shared_world_state):
 	agent.start()
 	agent_types[agent_id] = agent_type
 	process_table[agent_id] = agent
-	print(f"[ENV] Spawned {agent_type} {agent_id}")
+	
+	# Sends update to the display
+	update_message = f"[ENV] SPAWN {agent_type} {agent_id}"
+	send_world_updates(update_message)
+
+	print(update_message)
 
 def select_prey_id():
 	global alive_agents
@@ -61,8 +104,11 @@ def grass_growth_loop(max_grass, shared_world_state):
 	while True:
 		time.sleep(5)
 		with world_lock:
-			grass_quantity = min(max_grass, grass_quantity + grass_growth_rate)
-			shared_world_state["grass"] = grass_quantity
+			is_drought = shared_world_state["is_drought"]
+
+			if not is_drought:
+				grass_quantity = min(max_grass, grass_quantity + grass_growth_rate)
+				shared_world_state["grass"] = grass_quantity
 
 def set_drought(is_drought):
 	global grass_growth_rate
@@ -168,13 +214,16 @@ def handle_agent(conn, addr, shared_energy, shared_world_state):
 						if agent_type == "predator":
 							nb_predators -= 1
 							shared_world_state["predators"] = nb_predators
-							print(f"[ENV] Predator {agent_id} died (natural)")
 						elif agent_type == "prey":
 							nb_preys -= 1
 							shared_world_state["preys"] = nb_preys
-							print(f"[ENV] Prey {agent_id} died (natural)")
 
-					print_world_state()
+						update_message = f"[ENV] KILL {agent_type} {agent_id}"
+						send_world_updates(update_message)
+
+						print(f"[ENV] {agent_type} {agent_id} died")
+
+						print_world_state()
 
 			if msg_type == "request_reproduce":
 				with world_lock:
@@ -211,16 +260,20 @@ def main():
 	shared_world_state["predators"] = nb_predators
 	shared_world_state["preys"] = nb_preys
 	shared_world_state["grass"] = grass_quantity
+	shared_world_state["is_drought"] = False
 	server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	server_socket.bind((HOST, PORT))
 	server_socket.listen()
 
 	print(f"[ENV] Server listening on {HOST}:{PORT}")
-
 	max_grass_quantity = 100
 	grass = threading.Thread(target=grass_growth_loop, args=(max_grass_quantity, shared_world_state), daemon = True)
 	grass.start()
 
+	listening_mq = threading.Thread(target=listen_message_queue, args=(shared_energy, shared_world_state), daemon=True)
+	listening_mq.start()
+
+	print("-- env sending on queue " + str(mq_send_key))
 	while True:
 		conn, addr = server_socket.accept()
 		thread = threading.Thread(target = handle_agent, args = (conn, addr, shared_energy, shared_world_state), daemon = True)
