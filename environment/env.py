@@ -16,10 +16,9 @@ nb_predators = 0
 nb_preys = 0
 grass_quantity = 0
 grass_growth_rate = 5
-predator_eat_gain = 30
-prey_eat_gain = 1
-predator_reproduce_threshold = 80
-prey_reproduce_threshold = 60
+predator_eat_gain = 20
+prey_eat_gain = 3
+reproducing_agents = set()
 reproduce_cost = 30
 next_agent_id = 0
 alive_agents = set()
@@ -51,7 +50,6 @@ def listen_message_queue(shared_energy, shared_world_state):
 			command = received.split(" ")
 			if command[0] == "SPAWN": # example: SPAWN predator 1
 				spawn_agent(agent_type=command[1], agent_id=int(command[2]),shared_energy=shared_energy, shared_world_state=shared_world_state)
-
 			# Stops the spawning of grass for an undetermined time
 			elif command[0] == "DROUGHT": # example: DROUGHT true
 				with world_lock:
@@ -90,7 +88,6 @@ def spawn_agent(agent_type, agent_id, shared_energy, shared_world_state):
 	update_message = f"[ENV] SPAWN {agent_type} {agent_id}"
 	send_world_updates(update_message)
 
-	print(update_message)
 
 def select_prey_id():
 	global alive_agents
@@ -111,7 +108,7 @@ def grass_growth_loop(max_grass, shared_world_state):
 				shared_world_state["grass"] = grass_quantity
 
 def handle_agent(conn, addr, shared_energy, shared_world_state):
-	global nb_predators, nb_preys, grass_quantity, alive_agents, energy_ledger, process_table, agent_types
+	global nb_predators, nb_preys, grass_quantity, alive_agents, energy_ledger, process_table, agent_types, reproducing_agents
 	
 	print(f"[ENV] New connection from {addr}")
 
@@ -150,7 +147,7 @@ def handle_agent(conn, addr, shared_energy, shared_world_state):
 						prey_id = select_prey_id()
 						if prey_id is not None:
 							alive_agents.remove(prey_id)
-							agent_types.pop(victim_id, None)
+							agent_types.pop(prey_id, None)
 							nb_preys -= 1
 							shared_world_state["preys"] = nb_preys
 								
@@ -174,6 +171,9 @@ def handle_agent(conn, addr, shared_energy, shared_world_state):
 					print_world_state()
 				
 				if victim_id is not None:
+					update_message = f"[ENV] KILL prey {victim_id}"
+					send_world_updates(update_message)
+
 					prey_process = process_table.pop(victim_id, None)
 					if prey_process:
 						prey_process.terminate()
@@ -217,26 +217,24 @@ def handle_agent(conn, addr, shared_energy, shared_world_state):
 
 			if msg_type == "request_reproduce":
 				with world_lock:
-					energy_ledger.setdefault(agent_id, 0)
-
-					if agent_type == "predator":
-						allowed = (energy_ledger.get(agent_id, 0) >= predator_reproduce_threshold)
-					elif agent_type == "prey":
-						allowed = (energy_ledger.get(agent_id, 0) >= prey_reproduce_threshold)
+					if agent_id in reproducing_agents:
+						print(f"[ENV] {agent_id} reproduce request already processing)")
+						new_id = None
 					else:
-						allowed = False
-
-					if allowed:
+						reproducing_agents.add(agent_id)
+						energy_ledger.setdefault(agent_id, 0)
+					
 						energy_ledger[agent_id] -= reproduce_cost
 						shared_energy[agent_id] = energy_ledger[agent_id]
 
 						new_id = allocate_agent_id()
-						spawn_agent(agent_type, new_id, shared_energy, shared_world_state)
-						print(f"[ENV] Reproduction approved, spawning {agent_type} {new_id}")
+				
+				if new_id is not None:
+					spawn_agent(agent_type, new_id, shared_energy, shared_world_state)
+					print(f"[ENV] Reproduction approved, spawning {agent_type} {new_id}")
 
-					else:
-						print(f"[ENV] {agent_type} {agent_id} reproduction denied (energy too low)")
-
+				with world_lock:
+					reproducing_agents.discard(agent_id)
 		except json.JSONDecodeError:
 			print("[ENV] Received invalid JSON")
 

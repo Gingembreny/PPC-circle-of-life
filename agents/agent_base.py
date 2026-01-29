@@ -3,6 +3,7 @@
 import socket
 import json
 import time
+import random
 from multiprocessing import *
 
 class Agent(Process):
@@ -81,6 +82,13 @@ class Agent(Process):
 
             if self.state == "active":
                 self.request_eat()
+            elif self.energy < self.R:
+                if self.agent_type == "prey":
+                    if random.random() < 0.5:
+                        self.request_eat()
+                elif self.agent_type == "predator":
+                    if random.random() < 0.2:
+                        self.request_eat()
 
             if self.energy > self.R:
                 self.request_reproduce()
