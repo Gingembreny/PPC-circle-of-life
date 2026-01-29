@@ -39,7 +39,9 @@ class Agent(Process):
             "energy": self.energy
         }
         try:
-            self.sock.sendall(json.dumps(message).encode())
+            # Delimiter to prevent messages to be stick together if sent at the same time
+            message = json.dumps(message) + "\n"
+            self.sock.sendall(message.encode())
         except Exception as e:
             print(f"[AGENT {self.agent_id}] failed to send request: {e}")
 
