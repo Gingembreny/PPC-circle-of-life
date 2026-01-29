@@ -60,9 +60,9 @@ def cleanup_processes():
 
 def send_message_to_mq(message):
 	# Sends world updates to queue 129
-	to_send = str(message).encode()
-	mq_send.send(to_send)
-	print("send_message_to_mq: " + message)
+    to_send = str(message).encode()
+    mq_send.send(to_send)
+    print("send_message_to_mq: " + message)
 
 def listen_message_queue(shared_energy, shared_world_state):
 	# Receives the world state from the message queue 128
@@ -90,9 +90,8 @@ def print_world_state():
 
 def allocate_agent_id():
 	global next_agent_id
-	with world_lock:
-		agent_id = next_agent_id
-		next_agent_id += 1
+	agent_id = next_agent_id
+	next_agent_id += 1
 	return agent_id
 
 def spawn_agent(agent_type, agent_id, shared_energy, shared_world_state):
@@ -153,137 +152,141 @@ def handle_agent(conn, addr, shared_energy, shared_world_state):
 					print_world_state()
 			print(f"[ENV] Connection closed by {addr}")
 			break
-
-		try:
-			message = json.loads(data.decode())
-			print(f"[ENV] Received: {message}")
-			msg_type = message.get("type")
-			agent_type = message.get("agent_type")
-			agent_id = message.get("agent_id")
+		
+		requests = data.decode().split("\n")
 			
-			if msg_type == "request_eat":
-				victim_id = None
-				with world_lock:
-					energy_ledger.setdefault(agent_id, 0)
-					if agent_type == "predator":
-						prey_id = select_prey_id()
-						if prey_id is not None:
-							alive_agents.remove(prey_id)
-							agent_types.pop(prey_id, None)
-							nb_preys -= 1
-							shared_world_state["preys"] = nb_preys
-								
-							energy_ledger[agent_id] += predator_eat_gain
-							shared_energy[agent_id] = energy_ledger[agent_id]
-							victim_id = prey_id
-							print(f"[ENV] Predator {agent_id} eats a prey (+{predator_eat_gain})")
-						else:
-							print("[ENV] No prey alive")
-					
-					elif agent_type == "prey":
-						if grass_quantity > 0:
-							grass_quantity -= 1
-							shared_world_state["grass"] = grass_quantity
-							energy_ledger[agent_id] += prey_eat_gain
-							shared_energy[agent_id] = energy_ledger[agent_id]
-							print(f"[ENV] Prey {agent_id} eats grass (+{prey_eat_gain})")
-						else:
-							print("[ENV] No grass available")
-					
-					print_world_state()
+		# Many requests may be sent at the same time.
+		for r in requests:
+			if r == "\n" or r == "":
+				continue
+			try:	
+				message = json.loads(r)
+				print(f"[ENV] Received: {message}")
+				msg_type = message.get("type")
+				agent_type = message.get("agent_type")
+				agent_id = message.get("agent_id")
 				
-				# Terminates the agent process
-				if victim_id is not None:
-					update_message = f"[ENV] KILL prey {victim_id}"
-					send_message_to_mq(update_message)
-
-					prey_process = process_table.pop(victim_id, None)
-					if prey_process:
-						prey_process.terminate()
-						prey_process.join()
-
-			if msg_type == "notify_birth":
-				with world_lock:
-					if agent_id not in alive_agents:
-						alive_agents.add(agent_id)
-						agent_types[agent_id] = agent_type
-
+				if msg_type == "request_eat":
+					victim_id = None
+					with world_lock:
+						energy_ledger.setdefault(agent_id, 0)
 						if agent_type == "predator":
-							nb_predators += 1
-							shared_world_state["predators"] = nb_predators
-							print(f"[ENV] New born predator {agent_id}")
+							prey_id = select_prey_id()
+							if prey_id is not None:
+								alive_agents.remove(prey_id)
+								agent_types.pop(prey_id, None)
+								nb_preys -= 1
+								shared_world_state["preys"] = nb_preys
+									
+								energy_ledger[agent_id] += predator_eat_gain
+								shared_energy[agent_id] = energy_ledger[agent_id]
+								victim_id = prey_id
+								print(f"[ENV] Predator {agent_id} eats a prey (+{predator_eat_gain})")
+							else:
+								print("[ENV] No prey alive")
+						
 						elif agent_type == "prey":
-							nb_preys += 1
-							shared_world_state["preys"] = nb_preys
-							print(f"[ENV] New born prey {agent_id}")
-					print_world_state()
-				
-			if msg_type == "notify_death":
-				with world_lock:
-					if agent_id in alive_agents:
-						alive_agents.remove(agent_id)
-						agent_types.pop(agent_id, None)
-
-						if agent_type == "predator":
-							nb_predators -= 1
-							shared_world_state["predators"] = nb_predators
-						elif agent_type == "prey":
-							nb_preys -= 1
-							shared_world_state["preys"] = nb_preys
-
-						update_message = f"[ENV] KILL {agent_type} {agent_id}"
+							if grass_quantity > 0:
+								grass_quantity -= 1
+								shared_world_state["grass"] = grass_quantity
+								energy_ledger[agent_id] += prey_eat_gain
+								shared_energy[agent_id] = energy_ledger[agent_id]
+								print(f"[ENV] Prey {agent_id} eats grass (+{prey_eat_gain})")
+							else:
+								print("[ENV] No grass available")
+						
+						print_world_state()
+					
+					# Terminates the agent process
+					if victim_id is not None:
+						update_message = f"[ENV] KILL prey {victim_id}"
 						send_message_to_mq(update_message)
 
-						print(f"[ENV] {agent_type} {agent_id} died")
+						prey_process = process_table.pop(victim_id, None)
+						if prey_process:
+							prey_process.terminate()
+							prey_process.join()
 
+				if msg_type == "notify_birth":
+					with world_lock:
+						if agent_id not in alive_agents:
+							alive_agents.add(agent_id)
+							agent_types[agent_id] = agent_type
+
+							if agent_type == "predator":
+								nb_predators += 1
+								shared_world_state["predators"] = nb_predators
+								print(f"[ENV] New born predator {agent_id}")
+							elif agent_type == "prey":
+								nb_preys += 1
+								shared_world_state["preys"] = nb_preys
+								print(f"[ENV] New born prey {agent_id}")
 						print_world_state()
-
-			if msg_type == "request_reproduce":
-				with world_lock:
-					if agent_id in reproducing_agents:
-						print(f"[ENV] {agent_id} reproduce request already processing)")
-						new_id = None
-					else:
-						reproducing_agents.add(agent_id)
-						energy_ledger.setdefault(agent_id, 0)
 					
-						energy_ledger[agent_id] -= reproduce_cost
-						shared_energy[agent_id] = energy_ledger[agent_id]
+				if msg_type == "notify_death":
+					with world_lock:
+						if agent_id in alive_agents:
+							alive_agents.remove(agent_id)
+							agent_types.pop(agent_id, None)
 
-						new_id = allocate_agent_id()
-				
-				if new_id is not None:
-					spawn_agent(agent_type, new_id, shared_energy, shared_world_state)
-					print(f"[ENV] Reproduction approved, spawning {agent_type} {new_id}")
+							if agent_type == "predator":
+								nb_predators -= 1
+								shared_world_state["predators"] = nb_predators
+							elif agent_type == "prey":
+								nb_preys -= 1
+								shared_world_state["preys"] = nb_preys
 
-				with world_lock:
-					reproducing_agents.discard(agent_id)
-		except json.JSONDecodeError:
-			print(f"[ENV] Received invalid JSON. Received: {data.decode()}")
+							agent_process = process_table.pop(agent_id, None)
+							if agent_process:
+								agent_process.terminate()
+								agent_process.join()
+
+							update_message = f"[ENV] KILL {agent_type} {agent_id}"
+							send_message_to_mq(update_message)
+
+							print(f"[ENV] {agent_type} {agent_id} died")
+
+							print_world_state()
+
+				if msg_type == "request_reproduce":
+					with world_lock:
+						if agent_id in reproducing_agents:
+							print(f"[ENV] {agent_id} reproduce request already processing)")
+							new_id = None
+						else:
+							reproducing_agents.add(agent_id)
+							energy_ledger.setdefault(agent_id, 0)
+						
+							energy_ledger[agent_id] -= reproduce_cost
+							shared_energy[agent_id] = energy_ledger[agent_id]
+
+							new_id = allocate_agent_id()
+					
+					if new_id is not None:
+						spawn_agent(agent_type, new_id, shared_energy, shared_world_state)
+						print(f"[ENV] Reproduction approved, spawning {agent_type} {new_id}")
+
+					with world_lock:
+						reproducing_agents.discard(agent_id)
+			except json.JSONDecodeError:
+				print(f"[ENV] Received invalid JSON. Received: {r}")
 
 	conn.close()
 
 
 
 
-def make_handler_start(shared_world_state):
-	def handle_drought_start(sig, frame):
+def make_handler(shared_world_state):
+	def handle_drought(sig, frame):
 		with world_lock:
-			shared_world_state["is_drought"] = True
+			is_drought = shared_world_state["is_drought"]
+			is_drought = not is_drought
+			shared_world_state["is_drought"] = is_drought
 			
-		print(f"[ENV] Drought set to True")
+		print(f"[ENV] Drought set to {is_drought}")
 			
-	return handle_drought_start
+	return handle_drought
 
-
-def make_handler_end(shared_world_state):
-	def handle_drought_end(sig, frame):
-		with world_lock:
-			shared_world_state["is_drought"] = False
-			
-		print(f"[ENV] Drought set to False")
-			
-	return handle_drought_end
 
 
 
@@ -298,8 +301,7 @@ def main():
 	server_socket.bind((HOST, PORT))
 	server_socket.listen()
 
-	signal.signal(signal.SIGUSR1, make_handler_start(shared_world_state))
-	signal.signal(signal.SIGUSR2, make_handler_end(shared_world_state))
+	signal.signal(signal.SIGUSR1, make_handler(shared_world_state))
 
 	print(f"[ENV] Server listening on {HOST}:{PORT}")
 	max_grass_quantity = 100

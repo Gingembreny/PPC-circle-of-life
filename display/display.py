@@ -11,7 +11,6 @@ import queue
 CANVA_WIDTH = 800
 CANVA_HEIGHT = 600
 MOVE_SPEED = 1
-env_pid = -1
 BASE_DIR = Path(__file__).resolve().parent.parent
 PREDA_SPRITE_PATH = BASE_DIR / "assets" / "predator_sprite.png"
 PREY_SPRITE_PATH = BASE_DIR / "assets" / "prey_sprite.png"
@@ -114,18 +113,15 @@ def on_click_send_button(text_widget):
     global env_pid
     message = text_widget.get('1.0', 'end-1c')
     command = message.split(" ")
-    if not command:
-        return
-    
+
     if command[0] == "DROUGHT":
         # If the command is a drought, use a signal rather than the message queue.
         if int(env_pid) != -1:
-            if len(command) < 2 or command[1] == "true" or command[1] == "start":
+            try:
                 os.kill(int(env_pid), signal.SIGUSR1)
-                print("[DISPLAY] DROUGHT_START signal sent")
-            elif command[1] == "false" or command[1] == "end":
-                os.kill(int(env_pid), signal.SIGUSR2)
-                print("[DISPLAY] DROUGHT_OVER signal sent")
+            except ProcessLookupError:
+                print(f"[DISPLAY] ENV process not found. PID: {env_pid}")
+            print("[DISPLAY] DROUGHT signal sent")
         else:
             print(f"[DISPLAY] env_pid not yet received. PID: {env_pid}")
     else:
@@ -146,11 +142,7 @@ def receive_world_state(command_queue):
     
     print("[DISPLAY] Listening on mq " + str(mq_receive_key))
     while True:
-        try:
-            message, t = mq_receive.receive()
-        except sysv_ipc.ExistentialError:
-            break
-        
+        message, t = mq_receive.receive()
         received = message.decode()
         if received:
             # ex: [ENV] command_type
