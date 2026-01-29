@@ -24,6 +24,7 @@ class DisplayAgent:
         self.y = y
         self.sprite = tk.PhotoImage(file=str(sprite_path))
 
+        # Changes the moving direction to a random one every 100 ticks
         self.default_time_before_dir_change = 100
         self.time_before_dir_change = self.default_time_before_dir_change
         self.dir = 0 # in degrees
@@ -31,11 +32,13 @@ class DisplayAgent:
         self.canva_id = canvas.create_image(self.x, self.y, image=self.sprite)
 
     def move(self):
+        # Moves to the current direction
         dx_ = MOVE_SPEED * math.cos(self.dir * math.pi/180)
         dy_ = MOVE_SPEED * math.sin(self.dir * math.pi/180)
         self.x += dx_
         self.y += dy_
 
+        # Prevents the agent from exiting the canva
         if self.x < 0:
             dx_ = 0
             self.x = 0
