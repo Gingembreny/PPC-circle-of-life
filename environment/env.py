@@ -331,9 +331,7 @@ def main():
 		thread = threading.Thread(target = handle_agent, args = (conn, addr, shared_energy, shared_world_state), daemon = True)
 		thread.start()
 
-
-signal.signal(signal.SIGINT, on_shutdown)
-signal.signal(signal.SIGTERM, on_shutdown)
-
 if __name__ == "__main__":
+	signal.signal(signal.SIGINT, on_shutdown)
+	signal.signal(signal.SIGTERM, on_shutdown)
 	main()
