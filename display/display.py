@@ -1,3 +1,5 @@
+import os
+import signal
 import sysv_ipc
 from multiprocessing import *
 import tkinter as tk
@@ -108,7 +110,19 @@ def flush_queue(q):
             break
 
 def on_click_send_button(text_widget):
-    send_message_to_mq(text_widget.get('1.0', 'end-1c'))
+    global env_pid
+    message = text_widget.get('1.0', 'end-1c')
+    command = message.split(" ")
+
+    if command[0] == "DROUGHT":
+        # If the command is a drought, use a signal rather than the message queue.
+        if int(env_pid) != -1:
+            os.kill(int(env_pid), signal.SIGUSR1)
+            print("[DISPLAY] DROUGHT signal sent")
+        else:
+            print(f"[DISPLAY] env_pid not yet received. PID: {env_pid}")
+    else:
+        send_message_to_mq(message)
     text_widget.delete("1.0", tk.END)
 
 def send_message_to_mq(message):
@@ -121,6 +135,8 @@ def send_message_to_mq(message):
 def receive_world_state(command_queue):
     # Receives the world state from the message queue 129
 
+    global env_pid
+    
     print("[DISPLAY] Listening on mq " + str(mq_receive_key))
     while True:
         message, t = mq_receive.receive()
@@ -133,6 +149,16 @@ def receive_world_state(command_queue):
 
             if header != "[ENV]":
                 continue
+            
+            if command_type == "PID": # [ENV] PID env_pid
+                env_pid = command[2]
+
+                # Puts the command in the command queue waiting to be executed by the App   
+                command_queue.put((
+                command_type,
+                env_pid
+                ))
+                print(f"[DISPLAY] Added to queue command {command_type} {env_pid}")
 
             if command_type == "SPAWN" or command_type == "KILL": # ex: [ENV] SPAWN predator 1
                 agent_type = command[2]
@@ -148,12 +174,12 @@ def receive_world_state(command_queue):
 
 # Execute each command sent by child processes that are in the command queue
 def handle_commands(app: App):
-    while True:
-        try:
-            cmd = command_queue.get_nowait()
-        except queue.Empty:
-            break
-
+    global env_pid
+    try:
+        cmd = command_queue.get_nowait()
+    except queue.Empty:
+        pass
+    else:
         if cmd[0] == "SPAWN":
             _, agent_type, agent_id = cmd
             if agent_id in app.displayAgents:
@@ -165,6 +191,9 @@ def handle_commands(app: App):
             _, agent_type, agent_id = cmd
             app.remove_agent(agent_id=agent_id)
             print(f"[DISPLAY] Killed {agent_type} {agent_id}")
+        elif cmd[0] == "PID":
+            _, env_pid = cmd
+            print(f"[DISPLAY] Got PID {env_pid}")
 
     app.root.after(50, lambda: handle_commands(app))
 
@@ -173,7 +202,6 @@ mq_send = sysv_ipc.MessageQueue(mq_send_key, sysv_ipc.IPC_CREAT)
 
 mq_receive_key = 129
 mq_receive = sysv_ipc.MessageQueue(mq_receive_key)
-
 
 if __name__ == "__main__":
     root = tk.Tk()

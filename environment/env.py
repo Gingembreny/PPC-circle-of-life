@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 
+import sys
+import os
+import signal
 import socket
 import json
 import threading
@@ -23,12 +26,29 @@ reproduce_cost = 30
 next_agent_id = 0
 alive_agents = set()
 agent_types = {}
-process_table ={}
+process_table ={} # agent_process = process_table[agent_id]
 energy_ledger = {}
 world_lock = threading.Lock()
 mq_send_key = 129
 mq_send = sysv_ipc.MessageQueue(mq_send_key, sysv_ipc.IPC_CREAT)
+server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
+def on_shutdown(sig=None, frame=None):
+	print("\nShutting down env...")
+	cleanup_processes()
+	try:
+		server_socket.shutdown(socket.SHUT_RDWR)
+	except:
+		pass
+	server_socket.close()
+	sys.exit(0)
+
+def cleanup_processes():
+	nbr_agents = len(process_table)
+	for agent in process_table.values():
+		agent.terminate()
+		agent.join()
+	print(f"Terminated {nbr_agents} agents.")
 
 def send_message_to_mq(message):
 	# Sends world updates to queue 129
@@ -247,10 +267,9 @@ def handle_agent(conn, addr, shared_energy, shared_world_state):
 				with world_lock:
 					reproducing_agents.discard(agent_id)
 		except json.JSONDecodeError:
-			print("[ENV] Received invalid JSON")
+			print(f"[ENV] Received invalid JSON. Received: {data.decode()}")
 
 	conn.close()
-
 
 def main():
 	manager = Manager()
@@ -260,7 +279,6 @@ def main():
 	shared_world_state["preys"] = nb_preys
 	shared_world_state["grass"] = grass_quantity
 	shared_world_state["is_drought"] = False
-	server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	server_socket.bind((HOST, PORT))
 	server_socket.listen()
 
@@ -273,11 +291,20 @@ def main():
 	listening_mq.start()
 
 	print("-- env sending on queue " + str(mq_send_key))
+
+	# Sends the PID through the message queue for signal handling
+	send_pid_message = f"[ENV] PID " + str(os.getpid())
+	send_message_to_mq(send_pid_message)
+
+
 	while True:
 		conn, addr = server_socket.accept()
 		thread = threading.Thread(target = handle_agent, args = (conn, addr, shared_energy, shared_world_state), daemon = True)
 		thread.start()
 
+
+signal.signal(signal.SIGINT, on_shutdown)
+signal.signal(signal.SIGTERM, on_shutdown)
 
 if __name__ == "__main__":
 	main()
