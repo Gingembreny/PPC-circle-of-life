@@ -202,15 +202,15 @@ def handle_commands(app: App):
     app.root.after(50, lambda: handle_commands(app))
 
 def on_shutdown(sig=None, frame=None):
-	print("\nShutting down display...")
+    print("\nShutting down display...")
 
-	# Close the Message Queue
-	try:
-		mq_send.remove_message_queue(mq_send_key)
-	except:
-		pass
-	sys.exit(0)
-
+    # Close the Message Queue
+    try:
+        sysv_ipc.remove_message_queue(mq_send_key)
+    except sysv_ipc.ExistentialError:
+        pass
+    sys.exit(0)
+    
 mq_send_key = 128
 mq_send = sysv_ipc.MessageQueue(mq_send_key, sysv_ipc.IPC_CREAT)
 
