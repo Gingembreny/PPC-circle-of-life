@@ -107,12 +107,15 @@ def flush_queue(q):
         except queue.Empty:
             break
 
+def on_click_send_button(text_widget):
+    send_message_to_mq(text_widget.get('1.0', 'end-1c'))
+    text_widget.delete("1.0", tk.END)
 
-def send_command(message):
+def send_message_to_mq(message):
     # Sends commands to queue 128
     to_send = str(message).encode()
     mq_send.send(to_send)
-    print("display.py: send_command: " + message)
+    print("display.py: send_message_to_mq: " + message)
 
 
 def receive_world_state(command_queue):
@@ -187,7 +190,7 @@ if __name__ == "__main__":
     txt.pack()
 
     # Sends message on button click
-    btn = tk.Button(root, text="Print", command= lambda: send_command(txt.get('1.0', 'end-1c')))
+    btn = tk.Button(root, text="Send Command", command= lambda: on_click_send_button(txt))
     btn.pack()
 
     p_receive_world_state = Process(target=receive_world_state, args=(command_queue,))

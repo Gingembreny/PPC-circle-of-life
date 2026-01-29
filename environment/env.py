@@ -30,11 +30,11 @@ mq_send_key = 129
 mq_send = sysv_ipc.MessageQueue(mq_send_key, sysv_ipc.IPC_CREAT)
 
 
-def send_world_updates(message):
-	#sends to queue 129
+def send_message_to_mq(message):
+	# Sends world updates to queue 129
     to_send = str(message).encode()
     mq_send.send(to_send)
-    print("send_world_updates: " + message)
+    print("send_message_to_mq: " + message)
 
 def listen_message_queue(shared_energy, shared_world_state):
 	# Receives the world state from the message queue 128
@@ -86,7 +86,7 @@ def spawn_agent(agent_type, agent_id, shared_energy, shared_world_state):
 	
 	# Sends update to the display
 	update_message = f"[ENV] SPAWN {agent_type} {agent_id}"
-	send_world_updates(update_message)
+	send_message_to_mq(update_message)
 
 
 def select_prey_id():
@@ -180,9 +180,10 @@ def handle_agent(conn, addr, shared_energy, shared_world_state):
 					
 					print_world_state()
 				
+				# Terminates the agent process
 				if victim_id is not None:
 					update_message = f"[ENV] KILL prey {victim_id}"
-					send_world_updates(update_message)
+					send_message_to_mq(update_message)
 
 					prey_process = process_table.pop(victim_id, None)
 					if prey_process:
@@ -219,7 +220,7 @@ def handle_agent(conn, addr, shared_energy, shared_world_state):
 							shared_world_state["preys"] = nb_preys
 
 						update_message = f"[ENV] KILL {agent_type} {agent_id}"
-						send_world_updates(update_message)
+						send_message_to_mq(update_message)
 
 						print(f"[ENV] {agent_type} {agent_id} died")
 
