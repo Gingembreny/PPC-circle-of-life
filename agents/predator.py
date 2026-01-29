@@ -14,12 +14,3 @@ class Predator(Agent):
             shared_energy = shared_energy,
             shared_world_state = shared_world_state
         )
-
-    
-    
-
-
-if __name__ == "__main__":
-    predator = Predator(agent_id = 1)
-    predator.start()
-    predator.join()

@@ -14,9 +14,3 @@ class Prey(Agent):
             shared_energy = shared_energy,
             shared_world_state = shared_world_state
         )
-
-
-if __name__ == "__main__":
-    prey = Prey(agent_id =1 )
-    prey.start()
-    prey.join()
