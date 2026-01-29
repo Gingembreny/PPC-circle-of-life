@@ -60,9 +60,9 @@ def cleanup_processes():
 
 def send_message_to_mq(message):
 	# Sends world updates to queue 129
-    to_send = str(message).encode()
-    mq_send.send(to_send)
-    print("send_message_to_mq: " + message)
+	to_send = str(message).encode()
+	mq_send.send(to_send)
+	print("send_message_to_mq: " + message)
 
 def listen_message_queue(shared_energy, shared_world_state):
 	# Receives the world state from the message queue 128
@@ -90,8 +90,9 @@ def print_world_state():
 
 def allocate_agent_id():
 	global next_agent_id
-	agent_id = next_agent_id
-	next_agent_id += 1
+	with world_lock:
+		agent_id = next_agent_id
+		next_agent_id += 1
 	return agent_id
 
 def spawn_agent(agent_type, agent_id, shared_energy, shared_world_state):
@@ -265,17 +266,24 @@ def handle_agent(conn, addr, shared_energy, shared_world_state):
 
 
 
-def make_handler(shared_world_state):
-	def handle_drought(sig, frame):
+def make_handler_start(shared_world_state):
+	def handle_drought_start(sig, frame):
 		with world_lock:
-			is_drought = shared_world_state["is_drought"]
-			is_drought = not is_drought
-			shared_world_state["is_drought"] = is_drought
+			shared_world_state["is_drought"] = True
 			
-		print(f"[ENV] Drought set to {is_drought}")
+		print(f"[ENV] Drought set to True")
 			
-	return handle_drought
+	return handle_drought_start
 
+
+def make_handler_end(shared_world_state):
+	def handle_drought_end(sig, frame):
+		with world_lock:
+			shared_world_state["is_drought"] = False
+			
+		print(f"[ENV] Drought set to False")
+			
+	return handle_drought_end
 
 
 
@@ -290,7 +298,8 @@ def main():
 	server_socket.bind((HOST, PORT))
 	server_socket.listen()
 
-	signal.signal(signal.SIGUSR1, make_handler(shared_world_state))
+	signal.signal(signal.SIGUSR1, make_handler_start(shared_world_state))
+	signal.signal(signal.SIGUSR2, make_handler_end(shared_world_state))
 
 	print(f"[ENV] Server listening on {HOST}:{PORT}")
 	max_grass_quantity = 100
