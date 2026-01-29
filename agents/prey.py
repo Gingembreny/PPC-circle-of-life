@@ -4,7 +4,7 @@ from .agent_base import Agent
 
 
 class Prey(Agent):
-    def __init__(self, agent_id, shared_energy, shared_world_state, energy=7, H=15, R=60):
+    def __init__(self, agent_id, shared_energy, shared_world_state, energy=7, H=15, R=40):
         super().__init__(
             agent_id = agent_id,
             agent_type = "prey",

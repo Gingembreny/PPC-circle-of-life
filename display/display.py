@@ -4,6 +4,7 @@ import tkinter as tk
 from pathlib import Path
 import math
 import random
+import queue
 
 CANVA_WIDTH = 800
 CANVA_HEIGHT = 600
@@ -78,7 +79,7 @@ class App:
 
     # Moves every agent and updates the canva
     def update(self):
-        for _, agent in self.displayAgents.items():
+        for agent in list(self.displayAgents.values()):
             agent.move()
 
         # boucle de jeu ~60 FPS
@@ -92,8 +93,20 @@ class App:
         self.displayAgents[agent_id] = agent
 
     def remove_agent(self, agent_id):
-        agent = self.displayAgents.pop(agent_id)
+        agent = self.displayAgents.pop(agent_id, None)
+        if agent is None:
+            print(f"[DISPLAY] Warning: remove_agent called for unknown id {agent_id}.")
+            return
         agent.remove_from_canva()
+
+
+def flush_queue(q):
+    while True:
+        try:
+            q.get_nowait()
+        except queue.Empty:
+            break
+
 
 def send_command(message):
     # Sends commands to queue 128
@@ -120,7 +133,7 @@ def receive_world_state(command_queue):
 
             if command_type == "SPAWN" or command_type == "KILL": # ex: [ENV] SPAWN predator 1
                 agent_type = command[2]
-                agent_id = command[3]
+                agent_id = int(command[3])
 
                 # Puts the command in the command queue waiting to be executed by the App   
                 command_queue.put((
@@ -132,13 +145,19 @@ def receive_world_state(command_queue):
 
 # Execute each command sent by child processes that are in the command queue
 def handle_commands(app: App):
-    while not command_queue.empty():
-        cmd = command_queue.get()
+    while True:
+        try:
+            cmd = command_queue.get_nowait()
+        except queue.Empty:
+            break
 
         if cmd[0] == "SPAWN":
             _, agent_type, agent_id = cmd
-            app.add_agent(type=agent_type, agent_id=agent_id)
-            print(f"display.py: Spawned {agent_type} {agent_id}")
+            if agent_id in app.displayAgents:
+                print(f"[DISPLAY] Warning: spawn for existing id {agent_id} (ignoring)")
+            else:
+                app.add_agent(type=agent_type, agent_id=agent_id)
+                print(f"display.py: Spawned {agent_type} {agent_id}")
         elif cmd[0] == "KILL":
             _, agent_type, agent_id = cmd
             app.remove_agent(agent_id=agent_id)
@@ -160,6 +179,7 @@ if __name__ == "__main__":
 
     app = App(root)
     command_queue = Queue()
+    flush_queue(command_queue)
     handle_commands(app)
 
     # TextBox for input
