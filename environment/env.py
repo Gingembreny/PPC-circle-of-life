@@ -40,11 +40,19 @@ Cleanly terminates every agent process, and close the socket.
 def on_shutdown(sig=None, frame=None):
 	print("\nShutting down env...")
 	cleanup_processes()
+	# Close the socket
 	try:
 		server_socket.shutdown(socket.SHUT_RDWR)
 	except:
 		pass
+	
 	server_socket.close()
+
+	# Close the Message Queue
+	try:
+		mq_send.remove_message_queue(mq_send_key)
+	except:
+		pass
 	sys.exit(0)
 
 

@@ -7,6 +7,7 @@ from pathlib import Path
 import math
 import random
 import queue
+import sys
 
 CANVA_WIDTH = 800
 CANVA_HEIGHT = 600
@@ -200,11 +201,24 @@ def handle_commands(app: App):
 
     app.root.after(50, lambda: handle_commands(app))
 
+def on_shutdown(sig=None, frame=None):
+	print("\nShutting down display...")
+
+	# Close the Message Queue
+	try:
+		mq_send.remove_message_queue(mq_send_key)
+	except:
+		pass
+	sys.exit(0)
+
 mq_send_key = 128
 mq_send = sysv_ipc.MessageQueue(mq_send_key, sysv_ipc.IPC_CREAT)
 
 mq_receive_key = 129
 mq_receive = sysv_ipc.MessageQueue(mq_receive_key)
+
+signal.signal(signal.SIGINT, on_shutdown)
+signal.signal(signal.SIGTERM, on_shutdown)
 
 if __name__ == "__main__":
     root = tk.Tk()
