@@ -33,6 +33,10 @@ mq_send_key = 129
 mq_send = sysv_ipc.MessageQueue(mq_send_key, sysv_ipc.IPC_CREAT)
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
+'''
+Called when signal SIGINT or SIGTERM is received.
+Cleanly terminates every agent process, and close the socket.
+'''
 def on_shutdown(sig=None, frame=None):
 	print("\nShutting down env...")
 	cleanup_processes()
@@ -43,12 +47,16 @@ def on_shutdown(sig=None, frame=None):
 	server_socket.close()
 	sys.exit(0)
 
+
 def cleanup_processes():
 	nbr_agents = len(process_table)
 	for agent in process_table.values():
 		agent.terminate()
 		agent.join()
 	print(f"Terminated {nbr_agents} agents.")
+
+
+
 
 def send_message_to_mq(message):
 	# Sends world updates to queue 129
@@ -71,13 +79,6 @@ def listen_message_queue(shared_energy, shared_world_state):
 			if command[0] == "SPAWN": # example: SPAWN predator 1
 				spawn_agent(agent_type=command[1], agent_id=int(command[2]),shared_energy=shared_energy, shared_world_state=shared_world_state)
 			# Stops the spawning of grass for an undetermined time
-			elif command[0] == "DROUGHT": # example: DROUGHT true
-				with world_lock:
-					if command[1] == "true":
-						shared_world_state["is_drought"] = True
-					elif command[1] == "false":
-						shared_world_state["is_drought"] = False
-					print(f"[ENV] Drought set to {command[1]}")
 
 			elif command[0] == "PRINT":
 				print_world_state()
@@ -126,16 +127,6 @@ def grass_growth_loop(max_grass, shared_world_state):
 			if not is_drought:
 				grass_quantity = min(max_grass, grass_quantity + grass_growth_rate)
 				shared_world_state["grass"] = grass_quantity
-
-def set_drought(is_drought):
-	global grass_growth_rate
-	with world_lock:
-		if is_drought:
-			grass_growth_rate = 1
-			print("[ENV] Drought ON...")
-		else:
-			grass_growth_rate = 5
-			print("[ENV] Drought OFF...")
 
 def handle_agent(conn, addr, shared_energy, shared_world_state):
 	global nb_predators, nb_preys, grass_quantity, alive_agents, energy_ledger, process_table, agent_types, reproducing_agents
@@ -271,6 +262,23 @@ def handle_agent(conn, addr, shared_energy, shared_world_state):
 
 	conn.close()
 
+
+
+
+def make_handler(shared_world_state):
+	def handle_drought(sig, frame):
+		with world_lock:
+			is_drought = shared_world_state["is_drought"]
+			is_drought = not is_drought
+			shared_world_state["is_drought"] = is_drought
+			
+		print(f"[ENV] Drought set to {is_drought}")
+			
+	return handle_drought
+
+
+
+
 def main():
 	manager = Manager()
 	shared_energy = manager.dict()
@@ -281,6 +289,8 @@ def main():
 	shared_world_state["is_drought"] = False
 	server_socket.bind((HOST, PORT))
 	server_socket.listen()
+
+	signal.signal(signal.SIGUSR1, make_handler(shared_world_state))
 
 	print(f"[ENV] Server listening on {HOST}:{PORT}")
 	max_grass_quantity = 100

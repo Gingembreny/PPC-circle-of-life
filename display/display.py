@@ -117,7 +117,10 @@ def on_click_send_button(text_widget):
     if command[0] == "DROUGHT":
         # If the command is a drought, use a signal rather than the message queue.
         if int(env_pid) != -1:
-            os.kill(int(env_pid), signal.SIGUSR1)
+            try:
+                os.kill(int(env_pid), signal.SIGUSR1)
+            except ProcessLookupError:
+                print(f"[DISPLAY] ENV process not found. PID: {env_pid}")
             print("[DISPLAY] DROUGHT signal sent")
         else:
             print(f"[DISPLAY] env_pid not yet received. PID: {env_pid}")
